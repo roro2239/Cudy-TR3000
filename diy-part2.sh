@@ -16,6 +16,12 @@ sed -i 's/192.168.1.1/10.0.0.1/g' package/base-files/files/bin/config_generate
 # Modify default theme
 #sed -i 's/luci-theme-bootstrap/luci-theme-argon/g' feeds/luci/collections/luci/Makefile
 
+# Remove missing luci-app-radicale3 dependency warning
+RADICALE3_MAKEFILE="feeds/luci/applications/luci-app-radicale3/Makefile"
+if [ -f "$RADICALE3_MAKEFILE" ]; then
+  sed -i 's/ +rpcd-mod-rad3-enc//' "$RADICALE3_MAKEFILE"
+fi
+
 # Modify default WiFi
 MTWIFI_SCRIPT="package/mtk/applications/mtwifi-cfg/files/mtwifi.sh"
 if [ -f "$MTWIFI_SCRIPT" ]; then
