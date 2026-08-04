@@ -11,10 +11,20 @@
 #
 
 # Modify default IP
-#sed -i 's/192.168.1.1/192.168.50.5/g' package/base-files/files/bin/config_generate
+sed -i 's/192.168.1.1/10.0.0.1/g' package/base-files/files/bin/config_generate
 
 # Modify default theme
 #sed -i 's/luci-theme-bootstrap/luci-theme-argon/g' feeds/luci/collections/luci/Makefile
+
+# Modify default WiFi
+MTWIFI_SCRIPT="package/mtk/applications/mtwifi-cfg/files/mtwifi.sh"
+if [ -f "$MTWIFI_SCRIPT" ]; then
+  sed -i 's/ssid="ImmortalWrt-2.4G"/ssid="Cudy-TR3000"/' "$MTWIFI_SCRIPT"
+  sed -i 's/ssid="ImmortalWrt-5G"/ssid="Cudy-TR3000"/' "$MTWIFI_SCRIPT"
+  sed -i '/set wireless.${dev}.wapp=0/s/=0/=1/' "$MTWIFI_SCRIPT"
+  sed -i '/set wireless.default_${dev}.encryption=none/a\					set wireless.default_${dev}.key=1234567890' "$MTWIFI_SCRIPT"
+  sed -i 's/set wireless.default_${dev}.encryption=none/set wireless.default_${dev}.encryption=psk2+ccmp/' "$MTWIFI_SCRIPT"
+fi
 
 # Modify hostname
 #sed -i 's/OpenWrt/P3TERX-Router/g' package/base-files/files/bin/config_generate
