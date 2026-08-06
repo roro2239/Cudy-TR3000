@@ -14,6 +14,98 @@
 sed -i 's/192.168.1.1/10.0.0.1/g' package/base-files/files/bin/config_generate
 sed -i 's/192.168.6.1/10.0.0.1/g' package/base-files/files/bin/config_generate
 
+# 默认启用 IPv6
+mkdir -p files/etc/uci-defaults
+cat > files/etc/uci-defaults/99-enable-ipv6 <<'EOF'
+#!/bin/sh
+
+if uci -q get network.wan >/dev/null; then
+  uci set network.wan.ipv6='1'
+fi
+
+uci -q get network.wan6 >/dev/null || uci set network.wan6='interface'
+uci set network.wan6.proto='dhcpv6'
+uci set network.wan6.device='@wan'
+uci set network.wan6.reqaddress='try'
+uci set network.wan6.reqprefix='auto'
+
+if uci -q get network.lan >/dev/null; then
+  uci set network.lan.ip6assign='60'
+fi
+
+if uci -q get dhcp.lan >/dev/null; then
+  uci set dhcp.lan.ra='relay'
+  uci set dhcp.lan.dhcpv6='relay'
+  uci set dhcp.lan.ndp='relay'
+  uci -q delete dhcp.lan.ra_flags
+fi
+
+uci -q get dhcp.wan6 >/dev/null || uci set dhcp.wan6='dhcp'
+uci set dhcp.wan6.interface='wan6'
+uci set dhcp.wan6.ra='relay'
+uci set dhcp.wan6.dhcpv6='relay'
+uci set dhcp.wan6.ndp='relay'
+uci set dhcp.wan6.master='1'
+
+uci -q get dhcp.odhcpd >/dev/null || uci set dhcp.odhcpd='odhcpd'
+uci set dhcp.odhcpd.maindhcp='0'
+uci set dhcp.odhcpd.leasefile='/tmp/hosts/odhcpd'
+uci set dhcp.odhcpd.leasetrigger='/usr/sbin/odhcpd-update'
+uci set dhcp.odhcpd.loglevel='4'
+
+uci commit network
+uci commit dhcp
+exit 0
+EOF
+chmod 0755 files/etc/uci-defaults/99-enable-ipv6
+
+# 修正无前缀委派场景下的 IPv6 默认路由
+mkdir -p files/etc/hotplug.d/iface
+cat > files/etc/hotplug.d/iface/99-fix-ipv6-default-route <<'EOF'
+#!/bin/sh
+
+[ "$INTERFACE" = "wan6" ] || exit 0
+case "$ACTION" in
+  ifup|ifupdate) ;;
+  *) exit 0 ;;
+esac
+
+WAN6_DEV="$(ubus call network.interface.wan6 status 2>/dev/null | jsonfilter -e '@.l3_device' 2>/dev/null)"
+[ -n "$WAN6_DEV" ] || WAN6_DEV="$(uci -q get network.wan6.device)"
+[ "$WAN6_DEV" = "@wan" ] && WAN6_DEV="$(uci -q get network.wan.device)"
+[ -n "$WAN6_DEV" ] || WAN6_DEV="eth0"
+
+fix_routes() {
+  gw="$1"
+  ping -6 -c 1 -W 1 -I "$WAN6_DEV" "$gw" >/dev/null 2>&1 || return 1
+
+  ip -6 route replace default via "$gw" dev "$WAN6_DEV" metric 100
+  ip -6 addr show dev "$WAN6_DEV" scope global | awk '/inet6/ {
+    split($2, addr, "/");
+    split(addr[1], part, ":");
+    if (part[1] != "" && part[1] !~ /^f/) {
+      printf "%s:%s:%s:%s::/64\n", part[1], part[2], part[3], part[4];
+    }
+  }' | sort -u | while read prefix; do
+    [ -n "$prefix" ] && ip -6 route replace default from "$prefix" via "$gw" dev "$WAN6_DEV" metric 100
+  done
+
+  logger -t ipv6-route "default route fixed via $gw on $WAN6_DEV"
+  return 0
+}
+
+for i in 1 2 3 4 5; do
+  for gw in $(ip -6 neigh show dev "$WAN6_DEV" | awk '/ router / {print $1}') fe80::5 fe80::1; do
+    [ -n "$gw" ] && fix_routes "$gw" && exit 0
+  done
+  sleep 2
+done
+
+logger -t ipv6-route "no reachable IPv6 gateway found on $WAN6_DEV"
+exit 0
+EOF
+chmod 0755 files/etc/hotplug.d/iface/99-fix-ipv6-default-route
+
 # Modify default theme
 #sed -i 's/luci-theme-bootstrap/luci-theme-argon/g' feeds/luci/collections/luci/Makefile
 
