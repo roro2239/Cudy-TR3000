@@ -33,12 +33,18 @@ if uci -q get network.lan >/dev/null; then
   uci set network.lan.ipaddr='192.168.6.1'
   uci set network.lan.netmask='255.255.255.0'
   uci -q delete network.lan_admin
-  uci set network.lan_admin='alias'
-  uci set network.lan_admin.interface='lan'
+  uci set network.lan_admin='interface'
+  uci set network.lan_admin.device='br-lan'
   uci set network.lan_admin.proto='static'
   uci set network.lan_admin.ipaddr='10.0.0.1'
   uci set network.lan_admin.netmask='255.255.255.0'
+  LAN_ZONE="$(uci show firewall | sed -n "s/^\(firewall\.[^=]*\)\.name='lan'$/\1/p" | head -n 1)"
+  if [ -n "$LAN_ZONE" ]; then
+    uci -q del_list "$LAN_ZONE.network=lan_admin"
+    uci add_list "$LAN_ZONE.network=lan_admin"
+  fi
   uci commit network
+  uci commit firewall
 fi
 
 exit 0
