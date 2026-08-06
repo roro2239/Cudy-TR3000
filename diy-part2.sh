@@ -10,12 +10,42 @@
 # See /LICENSE for more information.
 #
 
-# Modify default IP
-sed -i 's/192.168.1.1/10.0.0.1/g' package/base-files/files/bin/config_generate
-sed -i 's/192.168.6.1/10.0.0.1/g' package/base-files/files/bin/config_generate
+# Modify default LAN IP
+sed -i 's/192.168.1.1/192.168.6.1/g' package/base-files/files/bin/config_generate
+
+mkdir -p files/etc/uci-defaults
+
+# 默认登录密码
+ROOT_PASSWORD_HASH="$(openssl passwd -1 -salt cudyroot root)"
+cat > files/etc/uci-defaults/01-set-root-password <<EOF
+#!/bin/sh
+
+sed -i 's#^root:[^:]*:#root:${ROOT_PASSWORD_HASH}:#' /etc/shadow
+exit 0
+EOF
+chmod 0755 files/etc/uci-defaults/01-set-root-password
+
+# 保持客户端 IPv4 地址段为 192.168，同时保留 10.0.0.1 管理入口
+cat > files/etc/uci-defaults/02-setup-lan-admin-address <<'EOF'
+#!/bin/sh
+
+if uci -q get network.lan >/dev/null; then
+  uci set network.lan.ipaddr='192.168.6.1'
+  uci set network.lan.netmask='255.255.255.0'
+  uci -q delete network.lan_admin
+  uci set network.lan_admin='alias'
+  uci set network.lan_admin.interface='lan'
+  uci set network.lan_admin.proto='static'
+  uci set network.lan_admin.ipaddr='10.0.0.1'
+  uci set network.lan_admin.netmask='255.255.255.0'
+  uci commit network
+fi
+
+exit 0
+EOF
+chmod 0755 files/etc/uci-defaults/02-setup-lan-admin-address
 
 # 默认启用 IPv6
-mkdir -p files/etc/uci-defaults
 cat > files/etc/uci-defaults/99-enable-ipv6 <<'EOF'
 #!/bin/sh
 
@@ -156,13 +186,34 @@ fi
 
 # Preinstall OpenClash Meta core
 OPENCLASH_CORE_DIR="files/etc/openclash/core"
-OPENCLASH_CORE_TMP="/tmp/clash-linux-arm64.tar.gz"
-OPENCLASH_CORE_URL="https://raw.githubusercontent.com/vernesong/OpenClash/core/master/meta/clash-linux-arm64.tar.gz"
+OPENCLASH_CORE_TMP="$(mktemp /tmp/clash-linux-arm64.XXXXXX.tar.gz)"
+OPENCLASH_CORE_BIN="$(mktemp /tmp/clash_meta.XXXXXX)"
+OPENCLASH_CORE_URLS="
+https://fastly.jsdelivr.net/gh/vernesong/OpenClash@core/master/meta/clash-linux-arm64.tar.gz
+https://testingcf.jsdelivr.net/gh/vernesong/OpenClash@core/master/meta/clash-linux-arm64.tar.gz
+https://raw.githubusercontent.com/vernesong/OpenClash/core/master/meta/clash-linux-arm64.tar.gz
+"
+OPENCLASH_CORE_OK=0
 mkdir -p "$OPENCLASH_CORE_DIR"
-wget -O "$OPENCLASH_CORE_TMP" "$OPENCLASH_CORE_URL"
-tar -zxOf "$OPENCLASH_CORE_TMP" clash > "$OPENCLASH_CORE_DIR/clash_meta"
-chmod 0755 "$OPENCLASH_CORE_DIR/clash_meta"
-rm -f "$OPENCLASH_CORE_TMP"
+for OPENCLASH_CORE_URL in $OPENCLASH_CORE_URLS; do
+  echo "[INFO] 下载 OpenClash Meta 核心：$OPENCLASH_CORE_URL"
+  rm -f "$OPENCLASH_CORE_TMP" "$OPENCLASH_CORE_BIN"
+  if wget -T 30 -O "$OPENCLASH_CORE_TMP" "$OPENCLASH_CORE_URL" \
+    && [ "$(wc -c < "$OPENCLASH_CORE_TMP")" -gt 1048576 ] \
+    && tar -tzf "$OPENCLASH_CORE_TMP" clash >/dev/null 2>&1 \
+    && tar -zxOf "$OPENCLASH_CORE_TMP" clash > "$OPENCLASH_CORE_BIN" \
+    && [ "$(wc -c < "$OPENCLASH_CORE_BIN")" -gt 1048576 ] \
+    && readelf -h "$OPENCLASH_CORE_BIN" | grep -q 'AArch64'; then
+    install -m 4755 "$OPENCLASH_CORE_BIN" "$OPENCLASH_CORE_DIR/clash_meta"
+    OPENCLASH_CORE_OK=1
+    break
+  fi
+done
+rm -f "$OPENCLASH_CORE_TMP" "$OPENCLASH_CORE_BIN"
+if [ "$OPENCLASH_CORE_OK" != "1" ]; then
+  echo "[ERROR] OpenClash Meta 核心下载或校验失败"
+  exit 1
+fi
 
 # Modify default WiFi
 MTWIFI_SCRIPT="package/mtk/applications/mtwifi-cfg/files/mtwifi.sh"
