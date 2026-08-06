@@ -23,6 +23,16 @@ if [ -f "$RADICALE3_MAKEFILE" ]; then
   sed -i 's/ +rpcd-mod-rad3-enc//' "$RADICALE3_MAKEFILE"
 fi
 
+# Preinstall OpenClash Meta core
+OPENCLASH_CORE_DIR="files/etc/openclash/core"
+OPENCLASH_CORE_TMP="/tmp/clash-linux-arm64.tar.gz"
+OPENCLASH_CORE_URL="https://raw.githubusercontent.com/vernesong/OpenClash/core/master/meta/clash-linux-arm64.tar.gz"
+mkdir -p "$OPENCLASH_CORE_DIR"
+wget -O "$OPENCLASH_CORE_TMP" "$OPENCLASH_CORE_URL"
+tar -zxOf "$OPENCLASH_CORE_TMP" clash > "$OPENCLASH_CORE_DIR/clash_meta"
+chmod 0755 "$OPENCLASH_CORE_DIR/clash_meta"
+rm -f "$OPENCLASH_CORE_TMP"
+
 # Modify default WiFi
 MTWIFI_SCRIPT="package/mtk/applications/mtwifi-cfg/files/mtwifi.sh"
 if [ -f "$MTWIFI_SCRIPT" ]; then
