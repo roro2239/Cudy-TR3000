@@ -195,6 +195,33 @@ if [ "$OPENCLASH_CORE_OK" != "1" ]; then
   exit 1
 fi
 
+# Optimize OpenClash Meta runtime defaults without changing proxy groups.
+OPENCLASH_CUSTOM_DIR="files/etc/openclash/custom"
+mkdir -p "$OPENCLASH_CUSTOM_DIR"
+cat > "$OPENCLASH_CUSTOM_DIR/openclash_custom_overwrite.sh" <<'EOF'
+#!/bin/sh
+. /usr/share/openclash/ruby.sh
+. /usr/share/openclash/log.sh
+
+CONFIG_FILE="$1"
+LOG_FILE="/tmp/openclash.log"
+
+ruby -ryaml -e '
+config = ARGV[0]
+value = YAML.load_file(config) || {}
+value["tcp-concurrent"] = true
+value["unified-delay"] = true
+value["profile"] ||= {}
+value["profile"]["store-fake-ip"] = true
+value["dns"] ||= {}
+value["dns"]["cache-algorithm"] = "arc"
+File.open(config, "w") { |file| YAML.dump(value, file) }
+' "$CONFIG_FILE" 2>>"$LOG_FILE"
+
+exit 0
+EOF
+chmod 0755 "$OPENCLASH_CUSTOM_DIR/openclash_custom_overwrite.sh"
+
 # Modify default WiFi
 MTWIFI_SCRIPT="package/mtk/applications/mtwifi-cfg/files/mtwifi.sh"
 if [ -f "$MTWIFI_SCRIPT" ]; then
