@@ -1,0 +1,16 @@
+# 本地 IDE 配置
+.idea/
+.vscode/
+*.iml
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+
+# OpenWrt 构建源码目录或符号链接
+/openwrt
+
+# 生成的软件包与本地工作文件
+*.ipk
+/work/
+/outputs/

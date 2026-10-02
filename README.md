@@ -9,6 +9,10 @@
 
 A template for building OpenWrt with GitHub Actions
 
+## TR3000 网口自动识别与 2.5G 修复
+
+两个固件目标已加入 `cudy-port-autodetect` 插件，支持任意口上联、WAN＋LAN、双 WAN 主备和双 LAN，并在构建时应用 PHY 复位及 Motorcomm 驱动配置补丁。插件用法、检测边界及验证范围见 [说明文档](package/cudy-port-autodetect/README.md)。2.5G 修复需要重新构建固件；安装插件 IPK 不会更换内核和设备树。
+
 ## Usage
 
 - Click the [Use this template](https://github.com/P3TERX/Actions-OpenWrt/generate) button to create a new repository.

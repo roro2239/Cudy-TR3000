@@ -1,0 +1,30 @@
+--- a/target/linux/mediatek/dts/mt7981b-cudy-tr3000-v1.dtsi
++++ b/target/linux/mediatek/dts/mt7981b-cudy-tr3000-v1.dtsi
+@@ -96,12 +96,14 @@
+ };
+ 
+ &mdio_bus {
++	/* 在识别 PHY 前释放复位，兼容 Realtek 和 Motorcomm 硬件批次。 */
++	reset-gpios = <&pio 39 GPIO_ACTIVE_LOW>;
++	reset-delay-us = <100000>;
++	reset-post-delay-us = <100000>;
++
+ 	phy1: phy@1 {
+ 		compatible = "ethernet-phy-ieee802.3-c45";
+ 		reg = <1>;
+-		reset-assert-us = <100000>;
+-		reset-deassert-us = <100000>;
+-		reset-gpios = <&pio 39 GPIO_ACTIVE_LOW>;
+ 		interrupts = <38 IRQ_TYPE_LEVEL_LOW>;
+ 		interrupt-parent = <&pio>;
+ 		realtek,aldps-enable;
+--- a/target/linux/mediatek/filogic/config-6.6
++++ b/target/linux/mediatek/filogic/config-6.6
+@@ -259,6 +259,7 @@
+ CONFIG_MFD_CORE=y
+ CONFIG_MFD_SYSCON=y
+ CONFIG_MIGRATION=y
++CONFIG_MOTORCOMM_PHY=y
+ CONFIG_MMC=y
+ CONFIG_MMC_BLOCK=y
+ CONFIG_MMC_CQHCI=y
