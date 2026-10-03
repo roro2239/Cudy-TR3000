@@ -9,9 +9,18 @@
 
 A template for building OpenWrt with GitHub Actions
 
-## TR3000 网口自动识别与 2.5G 修复
+## TR3000 基础网络与网口修复
 
-两个固件目标已加入 `cudy-port-autodetect` 插件，支持任意口上联、WAN＋LAN、双 WAN 主备和双 LAN，并在构建时应用 PHY 复位及 Motorcomm 驱动配置补丁。插件用法、检测边界及验证范围见 [说明文档](package/cudy-port-autodetect/README.md)。2.5G 修复需要重新构建固件；安装插件 IPK 不会更换内核和设备树。
+两个固件目标均使用系统原有的固定网口分工：2.5G 口（`eth0`）为 WAN，1G 口（`eth1`）为 LAN，WAN 使用 DHCP 上网。保留现有 WiFi、管理地址和 OpenClash 配置，IPv6 使用系统默认行为。
+
+`diy-part2.sh` 调用 `scripts/prepare-network-fixes.sh`，修正上游错误的 `ifdown` 文件，并应用两项 PHY 修复：
+
+- `patches/001-cudy-tr3000-phy-reset.patch` 将 GPIO 39 复位移到 MDIO 总线，使复位在扫描前完成，保留 Realtek 驱动并启用 Motorcomm 驱动。
+- `patches/002-cudy-tr3000-realtek-reset.patch` 加入 MediaTek 内核补丁队列。仅在这两个 TR3000 型号的外置 Realtek PHY 初始化超时、PHY 节点没有复位资源时，使用总线持有的 GPIO 按设备树延时复位并重试一次，保留超时和复位日志。
+
+上游内容不匹配或内核补丁目标已有不同内容时，构建准备会明确失败。驱动补丁与 GPIO 所有权修复须一起使用，重新构建并刷入对应固件后才能在设备生效。未刷入前，现有固件的 SerDes 超时问题仍可能发生。
+
+`tests/build_preparation.py --upstream /path/to/openwrt` 在临时目录验证两个构建配置的修复、重复执行和拒绝覆盖路径。`tests/realtek_reset.py --upstream /path/to/openwrt` 从上游补丁还原驱动，验证补丁应用与恢复分支。测试需要 Linux、Python 3、GNU patch 和 C 编译器。完整固件编译及网口硬件运行需要单独验证。
 
 ## Usage
 

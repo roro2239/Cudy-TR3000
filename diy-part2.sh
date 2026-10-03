@@ -10,9 +10,9 @@
 # See /LICENSE for more information.
 #
 
-# 两种构建目标都预装网口自动识别插件，并应用 PHY 复位修复。
+# 两种构建目标保留固定网口分工，并应用基础网络修复。
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
-bash "$PROJECT_DIR/scripts/prepare-port-autodetect.sh" || exit 1
+bash "$PROJECT_DIR/scripts/prepare-network-fixes.sh" || exit 1
 
 # Modify default LAN IP
 sed -i 's/192.168.1.1/192.168.6.1/g' package/base-files/files/bin/config_generate

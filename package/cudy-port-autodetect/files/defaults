@@ -1,4 +1,0 @@
-#!/bin/sh
-
-/usr/sbin/cudy-port-autodetect configure || exit 1
-/etc/init.d/cudy-port-autodetect enable

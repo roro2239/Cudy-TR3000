@@ -1,0 +1,38 @@
+--- a/drivers/net/phy/realtek/realtek_main.c
++++ b/drivers/net/phy/realtek/realtek_main.c
+@@ -14,6 +14,7 @@
+ #include <linux/module.h>
+ #include <linux/delay.h>
+ #include <linux/clk.h>
++#include <linux/gpio/consumer.h>
+ #include <linux/string_choices.h>
+ 
+ #include "realtek.h"
+@@ -1168,9 +1169,25 @@
+ 	ret = rtl822xb_config_init(phydev);
+ 
+ 	if (ret == -ETIMEDOUT) {
++		struct mii_bus *bus = phydev->mdio.bus;
++
+ 		phydev_warn(phydev, "SerDes setup timed out, retrying\n");
+-		phy_device_reset(phydev, 1);
+-		phy_device_reset(phydev, 0);
++		/* TR3000 在扫描前由总线复位外置 PHY，超时恢复须使用同一 GPIO。 */
++		if (!phydev->mdio.reset_gpio && !phydev->mdio.reset_ctrl &&
++		    bus->reset_gpiod && phydev->mdio.addr == 1 &&
++		    (of_machine_is_compatible("cudy,tr3000-v1-256mb") ||
++		     of_machine_is_compatible("cudy,tr3000-v1-ubootmod"))) {
++			phydev_warn(phydev, "通过 TR3000 MDIO GPIO 复位 PHY\n");
++			mutex_lock(&bus->mdio_lock);
++			gpiod_set_value_cansleep(bus->reset_gpiod, 1);
++			fsleep(bus->reset_delay_us);
++			gpiod_set_value_cansleep(bus->reset_gpiod, 0);
++			fsleep(bus->reset_post_delay_us);
++			mutex_unlock(&bus->mdio_lock);
++		} else {
++			phy_device_reset(phydev, 1);
++			phy_device_reset(phydev, 0);
++		}
+ 		ret = rtl822xb_config_init(phydev);
+ 	}
+ 
